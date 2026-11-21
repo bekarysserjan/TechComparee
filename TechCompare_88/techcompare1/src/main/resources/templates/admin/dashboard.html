@@ -1,0 +1,6 @@
+<!doctype html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TechCompare Admin</title><link rel="stylesheet" href="/admin.css"></head>
+<body><header><a class="brand" href="/admin">TechCompare <span>ADMIN</span></a><form th:action="@{/logout}" method="post"><button class="ghost">Log out</button></form></header>
+<main><p class="eyebrow">DATABASE MANAGEMENT</p><h1>Admin dashboard</h1><p class="muted">Manage the devices used by TechCompare.</p>
+<div class="stats"><a class="stat" href="/admin/smartphones"><span>Smartphones</span><strong th:text="${smartphoneCount}">0</strong><small>Manage smartphone records →</small></a><a class="stat" href="/admin/laptops"><span>Laptops</span><strong th:text="${laptopCount}">0</strong><small>Manage laptop records →</small></a></div>
+<section class="panel"><h2>Quick actions</h2><div class="actions"><a class="button" href="/admin/smartphones/new">+ Add smartphone</a><a class="button secondary" href="/admin/laptops/new">+ Add laptop</a></div></section><p class="footnote">Changes are saved directly to the connected Supabase PostgreSQL database.</p></main></body></html>
