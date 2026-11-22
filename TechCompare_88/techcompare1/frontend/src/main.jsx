@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
@@ -454,15 +454,14 @@ function App() {
   const [error, setError] = useState("");
   const [comparison, setComparison] = useState(null);
   const [activeCategory, setActiveCategory] = useState("OVERALL");
+  const [customWeights, setCustomWeights] = useState(false);
+  const [chartVersion, setChartVersion] = useState(0);
   const [weights, setWeights] = useState({
     GAMING: 34,
     CREATIVE_WORK: 33,
     DAILY_USE: 33,
   });
-  const weightTotal = CATEGORIES.reduce(
-    (sum, category) => sum + Number(weights[category] || 0),
-    0
-  );
+  const searchInputRef = useRef(null);
   const [aiText, setAiText] = useState("");
   const [comparing, setComparing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -490,6 +489,28 @@ function App() {
     localStorage.setItem("tc-theme", dark ? "dark" : "light");
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
+
+  useEffect(() => {
+    // Backspace должен редактировать текст только в редактируемом поле.
+    // В остальных местах браузер может трактовать его как "Назад", что
+    // особенно неприятно для SPA: вместо изменения поиска пользователь
+    // получает пустую страницу предыдущего маршрута.
+    const preventBrowserBackWithBackspace = (event) => {
+      if (event.key !== "Backspace") return;
+
+      const target = event.target;
+      const isEditable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target?.isContentEditable;
+
+      if (!isEditable) event.preventDefault();
+    };
+
+    window.addEventListener("keydown", preventBrowserBackWithBackspace);
+    return () =>
+      window.removeEventListener("keydown", preventBrowserBackWithBackspace);
+  }, []);
 
   // Поиск выполняется прямо во Frontend по уже загруженному каталогу Backend.
   // Пока пользователь ничего не ввёл, полный список специально не показываем.
@@ -591,6 +612,12 @@ function App() {
     toggleDevice(id);
   }
 
+  function changeCategory(category) {
+    // Небольшая анимация вместо резкой подмены графика.
+    setActiveCategory(category);
+    setChartVersion((value) => value + 1);
+  }
+
   async function fetchAiOverview(comparisonData) {
     if (!comparisonData) return;
 
@@ -680,6 +707,7 @@ function App() {
 
       setComparison(result);
       setActiveCategory("OVERALL");
+      setChartVersion((value) => value + 1);
       await fetchAiOverview(result);
     } catch (requestError) {
       setError(
@@ -763,16 +791,28 @@ function App() {
             </div>
 
             <div className="search-autocomplete">
-              <div className="search-box">
+              <div
+                className="search-box"
+                role="search"
+                onKeyDown={(event) => {
+                  // Backspace вне текстового поля не должен работать как
+                  // браузерная кнопка "Назад". В самом input Backspace работает обычно.
+                  if (event.key === "Backspace" && event.target !== searchInputRef.current) {
+                    event.preventDefault();
+                  }
+                }}
+              >
                 <Search size={18} />
                 <input
+                  ref={searchInputRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   onKeyDown={(event) => {
-                    // Если поле уже пустое, Backspace не должен передавать
-                    // управление браузеру и отправлять пользователя назад.
-                    if (event.key === "Backspace" && query === "") {
+                    // Пока фокус находится в поле, Backspace всегда должен редактировать текст.
+                    if (event.key === "Escape") {
                       event.preventDefault();
+                      setQuery("");
+                      searchInputRef.current?.focus();
                     }
                   }}
                   placeholder="Search Apple, Samsung, MacBook…"
@@ -783,8 +823,17 @@ function App() {
                   <button
                     type="button"
                     className="clear-search"
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => setQuery("")}
+                    tabIndex={-1}
+                    onPointerDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      setQuery("");
+                      requestAnimationFrame(() => searchInputRef.current?.focus());
+                    }}
                     aria-label="Clear search"
                   >
                     <X size={16} />
@@ -1006,9 +1055,10 @@ function App() {
                   <span className="score-badge">SCORE / 100</span>
                 </div>
 
-                <ScoreChart results={results} category={activeCategory} />
+                <div className="category-visuals" key={chartVersion}>
+                  <ScoreChart results={results} category={activeCategory} />
 
-                <div className="spider-panel">
+                  <div className="spider-panel">
                   <div className="panel-heading spider-heading">
                     <div>
                       <h3>Visual comparison</h3>
@@ -1018,7 +1068,8 @@ function App() {
                       {activeCategory === "OVERALL" ? "3 AXES" : "6 AXES"}
                     </span>
                   </div>
-                  <SpiderChart results={results} category={activeCategory} />
+                    <SpiderChart results={results} category={activeCategory} />
+                  </div>
                 </div>
 
                 <div className="winner-list">
@@ -1041,86 +1092,75 @@ function App() {
 
                 <div className="category-tabs">
                   <button
-                    className={
-                      activeCategory === "OVERALL"
-                        ? "category-tab active"
-                        : "category-tab"
-                    }
-                    onClick={() => setActiveCategory("OVERALL")}
+                    type="button"
+                    className={activeCategory === "OVERALL" ? "category-tab active" : "category-tab"}
+                    onClick={() => changeCategory("OVERALL")}
                   >
                     <span>Overall</span>
-                    <small>All categories</small>
                   </button>
                   {CATEGORIES.map((category) => (
                     <button
+                      type="button"
                       key={category}
-                      className={
-                        activeCategory === category
-                          ? "category-tab active"
-                          : "category-tab"
-                      }
-                      onClick={() => setActiveCategory(category)}
+                      className={activeCategory === category ? "category-tab active" : "category-tab"}
+                      onClick={() => changeCategory(category)}
                     >
                       <span>{CATEGORY_NAMES[category]}</span>
-                      <small>{weights[category]}%</small>
                     </button>
                   ))}
                 </div>
 
-                <div className="weight-controls">
-                  <div className="weight-heading-row">
-                    <div>
-                      <h4>Category importance</h4>
-                      <p>Set how much each category matters in the final comparison.</p>
-                    </div>
-                    <strong className={
-                      weightTotal === 100
-                        ? "weight-total valid"
-                        : "weight-total invalid"
-                    }>
-                      {weightTotal}%
-                    </strong>
-                  </div>
-
-                  <div className="weight-hint">
-                    Moving one slider automatically redistributes the other two. The total stays at 100%.
-                  </div>
-
-                  {CATEGORIES.map((category) => (
-                    <label className="weight-row" key={category}>
-                      <div className="weight-row-top">
-                        <span>{CATEGORY_NAMES[category]}</span>
-                        <strong>{weights[category]}%</strong>
-                      </div>
-                      <input
-                        className="weight-slider"
-                        type="range"
-                        min="0"
-                        max="100"
-                        step="1"
-                        value={weights[category]}
-                        style={{ "--slider-value": `${weights[category]}%` }}
-                        onChange={(event) =>
-                          setWeights((old) =>
-                            updateCategoryWeight(old, category, event.target.value)
-                          )
-                        }
-                        aria-label={`${CATEGORY_NAMES[category]} importance`}
-                      />
-                      <div className="weight-scale">
-                        <span>0%</span>
-                        <span>100%</span>
-                      </div>
-                    </label>
-                  ))}
-
+                <div className={`custom-weight-toggle ${customWeights ? "open" : ""}`}>
                   <button
-                    className="primary-button full-button"
-                    onClick={compare}
-                    disabled={comparing || weightTotal !== 100}
+                    type="button"
+                    className="custom-weight-button"
+                    onClick={() => setCustomWeights((value) => !value)}
+                    aria-expanded={customWeights}
                   >
-                    {comparing ? "Updating…" : "Update comparison"}
+                    <span>Custom category weights</span>
+                    <span>{customWeights ? "Hide" : "Set weights"}</span>
                   </button>
+
+                  {customWeights && (
+                    <div className="weight-controls">
+                      {CATEGORIES.map((category) => (
+                        <label className="weight-row" key={category}>
+                          <div className="weight-row-top">
+                            <span>{CATEGORY_NAMES[category]}</span>
+                            <strong>{weights[category]}%</strong>
+                          </div>
+                          <input
+                            className="weight-slider"
+                            type="range"
+                            min="0"
+                            max="100"
+                            step="1"
+                            value={weights[category]}
+                            style={{ "--slider-value": `${weights[category]}%` }}
+                            onChange={(event) =>
+                              setWeights((old) =>
+                                updateCategoryWeight(old, category, event.target.value)
+                              )
+                            }
+                            aria-label={`${CATEGORY_NAMES[category]} importance`}
+                          />
+                          <div className="weight-scale">
+                            <span>0%</span>
+                            <span>100%</span>
+                          </div>
+                        </label>
+                      ))}
+
+                      <button
+                        type="button"
+                        className="primary-button full-button"
+                        onClick={compare}
+                        disabled={comparing}
+                      >
+                        {comparing ? "Updating…" : "Update comparison"}
+                      </button>
+                    </div>
+                  )}
                 </div>
               </aside>
             </div>
