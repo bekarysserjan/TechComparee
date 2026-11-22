@@ -3,7 +3,7 @@ spring:
     name: techcompare
 
   datasource:
-    url: ${DB_URL:jdbc:jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
+    url: ${DB_URL:postgresql://postgres.qxzgdiwphgmgntkdqeav:zxcvbasdfgqwertpoi@aws-0-ap-southeast-2.pooler.supabase.com:5432/postgres}
     username: ${DB_USERNAME:postgres.qxzgdiwphgmgntkdqeav}
     password: ${DB_PASSWORD:zxcvbasdfgqwertpoi}
     driver-class-name: org.postgresql.Driver
