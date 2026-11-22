@@ -141,7 +141,7 @@ function DeviceSuggestion({ device, type, selected, onSelect }) {
   );
 }
 
-function SpiderChart({ results, category }) {
+function SpiderChart({ results, category, weights, customWeights }) {
   /*
    * Radar chart has two deliberately different modes.
    *
@@ -199,7 +199,13 @@ function SpiderChart({ results, category }) {
 
   const getScore = (item, axis) => {
     if (axis.kind === "category") {
-      return item.categoryScores?.[axis.key];
+      const score = Number(item.categoryScores?.[axis.key] ?? 0);
+      if (!customWeights) return score;
+
+      // В режиме пользовательских весов ось показывает вклад категории.
+      // Вес 0% убирает категорию из общей картины, а 100% оставляет её
+      // на исходном масштабе backend.
+      return score * (Number(weights?.[axis.key] ?? 0) / 100);
     }
 
     if (axis.kind === "category-score") {
@@ -373,23 +379,48 @@ function SpiderChart({ results, category }) {
   );
 }
 
-function ScoreChart({ results, category }) {
+function getDisplayedScore(item, category, weights, customWeights) {
+  if (category !== "OVERALL") {
+    return Number(item.categoryScores?.[category] || 0);
+  }
+
+  if (!customWeights) {
+    return Number(item.overallScore || 0);
+  }
+
+  let weightedTotal = 0;
+  let availableWeight = 0;
+
+  for (const categoryKey of CATEGORIES) {
+    const score = Number(item.categoryScores?.[categoryKey]);
+    const weight = Math.max(0, Number(weights?.[categoryKey]) || 0);
+
+    if (Number.isFinite(score) && weight > 0) {
+      weightedTotal += score * weight;
+      availableWeight += weight;
+    }
+  }
+
+  return availableWeight > 0 ? weightedTotal / availableWeight : 0;
+}
+
+function ScoreChart({ results, category, weights, customWeights }) {
   const max = Math.max(
     100,
     ...results.map((item) =>
-      category === "OVERALL"
-        ? Number(item.overallScore || 0)
-        : Number(item.categoryScores?.[category] || 0)
+      getDisplayedScore(item, category, weights, customWeights)
     )
   );
 
   return (
     <div className="chart" role="img" aria-label="Device score comparison">
       {results.map((item, index) => {
-        const score =
-          category === "OVERALL"
-            ? Number(item.overallScore || 0)
-            : Number(item.categoryScores?.[category] || 0);
+        const score = getDisplayedScore(
+          item,
+          category,
+          weights,
+          customWeights
+        );
 
         return (
           <div className="chart-row" key={item.deviceId}>
@@ -824,6 +855,10 @@ function App() {
                     type="button"
                     className="clear-search"
                     tabIndex={-1}
+                    onMouseDown={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                    }}
                     onPointerDown={(event) => {
                       event.preventDefault();
                       event.stopPropagation();
@@ -1056,7 +1091,7 @@ function App() {
                 </div>
 
                 <div className="category-visuals" key={chartVersion}>
-                  <ScoreChart results={results} category={activeCategory} />
+                  <ScoreChart results={results} category={activeCategory} weights={weights} customWeights={customWeights} />
 
                   <div className="spider-panel">
                   <div className="panel-heading spider-heading">
@@ -1068,21 +1103,34 @@ function App() {
                       {activeCategory === "OVERALL" ? "3 AXES" : "6 AXES"}
                     </span>
                   </div>
-                    <SpiderChart results={results} category={activeCategory} />
+                    <SpiderChart results={results} category={activeCategory} weights={weights} customWeights={customWeights} />
                   </div>
                 </div>
 
                 <div className="winner-list">
                   {results
                     .slice()
-                    .sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0))
-                    .map((item) => (
-                      <div className="winner-row" key={item.deviceId}>
-                        <span className="rank">#{item.rank}</span>
-                        <span>{item.deviceName}</span>
-                        <b>{item.overallScore ?? "—"} pts</b>
-                      </div>
-                    ))}
+                    .sort(
+                      (a, b) =>
+                        getDisplayedScore(b, "OVERALL", weights, customWeights) -
+                        getDisplayedScore(a, "OVERALL", weights, customWeights)
+                    )
+                    .map((item, index) => {
+                      const score = getDisplayedScore(
+                        item,
+                        "OVERALL",
+                        weights,
+                        customWeights
+                      );
+
+                      return (
+                        <div className="winner-row" key={item.deviceId}>
+                          <span className="rank">#{index + 1}</span>
+                          <span>{item.deviceName}</span>
+                          <b>{Number.isFinite(score) ? score.toFixed(1) : "—"} pts</b>
+                        </div>
+                      );
+                    })}
                 </div>
               </div>
 
@@ -1117,8 +1165,8 @@ function App() {
                     onClick={() => setCustomWeights((value) => !value)}
                     aria-expanded={customWeights}
                   >
-                    <span>Custom category weights</span>
-                    <span>{customWeights ? "Hide" : "Set weights"}</span>
+                    <span>Custom weights</span>
+                    <span>{customWeights ? "Hide" : "Set"}</span>
                   </button>
 
                   {customWeights && (
@@ -1142,23 +1190,10 @@ function App() {
                                 updateCategoryWeight(old, category, event.target.value)
                               )
                             }
-                            aria-label={`${CATEGORY_NAMES[category]} importance`}
+                            aria-label={`${CATEGORY_NAMES[category]} weight`}
                           />
-                          <div className="weight-scale">
-                            <span>0%</span>
-                            <span>100%</span>
-                          </div>
                         </label>
                       ))}
-
-                      <button
-                        type="button"
-                        className="primary-button full-button"
-                        onClick={compare}
-                        disabled={comparing}
-                      >
-                        {comparing ? "Updating…" : "Update comparison"}
-                      </button>
                     </div>
                   )}
                 </div>
