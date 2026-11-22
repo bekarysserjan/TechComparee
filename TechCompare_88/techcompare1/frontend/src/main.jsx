@@ -15,7 +15,7 @@ import {
 import "./style.css";
 
 const API = "/api/v1";
-const BACKEND_ORIGIN = "http://localhost:8080";
+const BACKEND_ORIGIN = window.location.origin;
 
 const CATEGORIES = ["GAMING", "CREATIVE_WORK", "DAILY_USE"];
 const CATEGORY_NAMES = {
