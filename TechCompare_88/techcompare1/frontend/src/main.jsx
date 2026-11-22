@@ -414,10 +414,8 @@ function ScoreChart({ results, category }) {
   );
 }
 
-// Изменение одного веса автоматически перераспределяет оставшийся процент
-// между двумя другими категориями. Поэтому сумма всегда остаётся ровно 100%.
-// Это лучше, чем позволять пользователю собрать, например, 137% при помощи
-// трёх ползунков, потому что математика тоже иногда хочет жить.
+// Изменение одного процента автоматически перераспределяет остаток
+// между двумя другими категориями. Поэтому сумма всегда остаётся 100%.
 function updateCategoryWeight(current, key, rawValue) {
   const nextValue = Math.max(0, Math.min(100, Math.round(Number(rawValue) || 0)));
   const otherKeys = CATEGORIES.filter((category) => category !== key);
@@ -428,8 +426,6 @@ function updateCategoryWeight(current, key, rawValue) {
   const remaining = 100 - nextValue;
   const next = { ...current, [key]: nextValue };
 
-  // Если у двух остальных категорий раньше были нулевые веса,
-  // делим оставшееся место поровну.
   if (oldOtherTotal === 0) {
     const first = Math.floor(remaining / 2);
     next[otherKeys[0]] = first;
@@ -437,7 +433,6 @@ function updateCategoryWeight(current, key, rawValue) {
     return next;
   }
 
-  // В остальных случаях сохраняем их прежнее соотношение.
   const firstOther = Math.round(
     (Number(current[otherKeys[0]]) / oldOtherTotal) * remaining
   );
@@ -459,13 +454,15 @@ function App() {
   const [error, setError] = useState("");
   const [comparison, setComparison] = useState(null);
   const [activeCategory, setActiveCategory] = useState("OVERALL");
-  // Вес каждой категории хранится сразу в процентах.
-  // Начальные значения уже дают ровно 100%.
   const [weights, setWeights] = useState({
     GAMING: 34,
     CREATIVE_WORK: 33,
     DAILY_USE: 33,
   });
+  const weightTotal = CATEGORIES.reduce(
+    (sum, category) => sum + Number(weights[category] || 0),
+    0
+  );
   const [aiText, setAiText] = useState("");
   const [comparing, setComparing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -700,12 +697,6 @@ function App() {
 
   const results = comparison?.results || [];
 
-  // Защита интерфейса: этот показатель всегда должен быть 100.
-  const weightTotal = CATEGORIES.reduce(
-    (sum, category) => sum + Number(weights[category] || 0),
-    0
-  );
-
   return (
     <div className="app-shell">
       <header className="topbar">
@@ -772,11 +763,18 @@ function App() {
             </div>
 
             <div className="search-autocomplete">
-              <label className="search-box">
+              <div className="search-box">
                 <Search size={18} />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
+                  onKeyDown={(event) => {
+                    // Если поле уже пустое, Backspace не должен передавать
+                    // управление браузеру и отправлять пользователя назад.
+                    if (event.key === "Backspace" && query === "") {
+                      event.preventDefault();
+                    }
+                  }}
                   placeholder="Search Apple, Samsung, MacBook…"
                   autoComplete="off"
                   aria-label="Search devices"
@@ -785,13 +783,14 @@ function App() {
                   <button
                     type="button"
                     className="clear-search"
+                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => setQuery("")}
                     aria-label="Clear search"
                   >
                     <X size={16} />
                   </button>
                 )}
-              </label>
+              </div>
 
               {query.trim() && !loading && (
                 <div className="suggestions" role="listbox" aria-label="Matching devices">
@@ -1007,10 +1006,9 @@ function App() {
                   <span className="score-badge">SCORE / 100</span>
                 </div>
 
-                <div className="category-visuals" key={activeCategory}>
-                  <ScoreChart results={results} category={activeCategory} />
+                <ScoreChart results={results} category={activeCategory} />
 
-                  <div className="spider-panel">
+                <div className="spider-panel">
                   <div className="panel-heading spider-heading">
                     <div>
                       <h3>Visual comparison</h3>
@@ -1020,8 +1018,7 @@ function App() {
                       {activeCategory === "OVERALL" ? "3 AXES" : "6 AXES"}
                     </span>
                   </div>
-                    <SpiderChart results={results} category={activeCategory} />
-                  </div>
+                  <SpiderChart results={results} category={activeCategory} />
                 </div>
 
                 <div className="winner-list">
@@ -1076,13 +1073,17 @@ function App() {
                       <h4>Category importance</h4>
                       <p>Set how much each category matters in the final comparison.</p>
                     </div>
-                    <strong className={weightTotal === 100 ? "weight-total valid" : "weight-total invalid"}>
+                    <strong className={
+                      weightTotal === 100
+                        ? "weight-total valid"
+                        : "weight-total invalid"
+                    }>
                       {weightTotal}%
                     </strong>
                   </div>
 
                   <div className="weight-hint">
-                    Moving one slider automatically redistributes the other two. The total can never exceed 100%.
+                    Moving one slider automatically redistributes the other two. The total stays at 100%.
                   </div>
 
                   {CATEGORIES.map((category) => (
