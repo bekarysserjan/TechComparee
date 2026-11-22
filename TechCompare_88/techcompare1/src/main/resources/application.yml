@@ -4,14 +4,14 @@ spring:
 
   datasource:
     url: ${DB_URL:jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require}
-    username: ${DB_USERNAME:postgres.aovdbazzhqidgatzabve}
-    password: ${DB_PASSWORD:FXoxAPCyDZVUEoGG}
+    username: ${DB_USERNAME:postgres.qxzgdiwphgmgntkdqeav}
+    password: ${DB_PASSWORD:J6c.@hEiKfc4T@h}
     driver-class-name: org.postgresql.Driver
 
   jpa:
     hibernate:
       # Existing Supabase tables are the source of truth. Do not auto-create or alter them.
-      ddl-auto: validate
+      ddl-auto: update
     open-in-view: false
     properties:
       hibernate:
