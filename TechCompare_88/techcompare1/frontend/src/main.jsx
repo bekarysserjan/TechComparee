@@ -499,6 +499,7 @@ function App() {
   const [comparing, setComparing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
   const [confetti, setConfetti] = useState([]);
+  const [winnerAnnouncement, setWinnerAnnouncement] = useState(null);
 
   // При смене типа устройства загружаем только нужный endpoint Backend.
   useEffect(() => {
@@ -739,7 +740,7 @@ function App() {
 
   function launchConfetti() {
     const colors = ["#f97316", "#60a5fa", "#22c55e", "#a855f7", "#f43f5e"];
-    const pieces = Array.from({ length: 80 }, (_, index) => ({
+    const pieces = Array.from({ length: 100 }, (_, index) => ({
       id: `${Date.now()}-${index}`,
       left: 5 + Math.random() * 90,
       color: colors[index % colors.length],
@@ -749,8 +750,34 @@ function App() {
       rotate: Math.random() * 720,
     }));
 
+    // Победитель определяется по тем же данным, которые сейчас видит пользователь.
+    // Поэтому для Gaming победит лучший Gaming, для Daily use лучший Daily use,
+    // а для Overall победит текущий лидер с учётом выбранных весов.
+    const getWinnerScore = (item) =>
+      activeCategory === "OVERALL"
+        ? Number(item.overallScore) || 0
+        : Number(item.categoryScores?.[activeCategory]) || 0;
+
+    const winner = displayResults
+      .slice()
+      .sort((a, b) => getWinnerScore(b) - getWinnerScore(a))[0];
+
+    if (winner) {
+      setWinnerAnnouncement({
+        name: winner.deviceName,
+        score: getWinnerScore(winner),
+        category:
+          activeCategory === "OVERALL"
+            ? "Overall"
+            : CATEGORY_NAMES[activeCategory],
+      });
+    }
+
     setConfetti(pieces);
-    window.setTimeout(() => setConfetti([]), 3300);
+    window.setTimeout(() => {
+      setConfetti([]);
+      setWinnerAnnouncement(null);
+    }, 3300);
   }
 
   async function explainComparison() {
@@ -771,6 +798,17 @@ function App() {
 
   return (
     <div className="app-shell">
+      {winnerAnnouncement && (
+        <div className="winner-announcement" role="status" aria-live="polite">
+          <span className="winner-cup">🏆</span>
+          <div>
+            <span className="winner-eyebrow">#1 WINNER · {winnerAnnouncement.category}</span>
+            <strong>{winnerAnnouncement.name}</strong>
+            <small>{winnerAnnouncement.score ?? "—"} / 100 points</small>
+          </div>
+        </div>
+      )}
+
       <header className="topbar">
         <a
           className="brand"
