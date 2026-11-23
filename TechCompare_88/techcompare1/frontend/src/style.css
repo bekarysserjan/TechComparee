@@ -1469,7 +1469,80 @@ footer .brand-mark {
 }
 
 /* =========================================================
-   16. КНОПКА И КОНФЕТТИ
+   16. ПОБЕДИТЕЛЬ И КОНФЕТТИ
+   ========================================================= */
+.winner-announcement {
+  position: fixed;
+  top: 22px;
+  left: 50%;
+  z-index: 120;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 280px;
+  max-width: min(520px, calc(100vw - 32px));
+  padding: 13px 18px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: 0 18px 45px rgba(0, 0, 0, 0.28);
+  transform: translateX(-50%);
+  animation: winner-pop 420ms cubic-bezier(.2,.8,.2,1) both;
+}
+
+.winner-cup {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 42px;
+  border-radius: 12px;
+  background: var(--soft);
+  font-size: 23px;
+}
+
+.winner-announcement > div {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.winner-eyebrow {
+  color: var(--orange);
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: .12em;
+}
+
+.winner-announcement strong {
+  font-size: 17px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.winner-announcement small {
+  color: var(--muted);
+  font-size: 11px;
+}
+
+@keyframes winner-pop {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -18px) scale(.9);
+  }
+  70% {
+    transform: translate(-50%, 3px) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+}
+
+/* =========================================================
+   17. КНОПКА И КОНФЕТТИ
    ========================================================= */
 .confetti-trigger {
   position: fixed;
@@ -1532,6 +1605,17 @@ footer .brand-mark {
 
 /* Кнопка не перекрывает нижний контент на маленьких экранах. */
 @media (max-width: 640px) {
+  .winner-announcement {
+    top: 12px;
+    min-width: 0;
+    width: calc(100vw - 24px);
+    padding: 11px 13px;
+  }
+
+  .winner-announcement strong {
+    font-size: 15px;
+  }
+
   .confetti-trigger {
     left: 12px;
     bottom: 12px;
