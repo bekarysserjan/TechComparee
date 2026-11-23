@@ -881,45 +881,24 @@ h1 span {
 }
 
 .category-tab {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  min-height: 44px;
   padding: 10px 12px;
   border: 1px solid transparent;
   border-radius: 9px;
   background: transparent;
   color: var(--muted);
   text-align: left;
-  transition: background 0.22s ease, border-color 0.22s ease, color 0.22s ease, transform 0.22s ease;
-}
-
-.category-tab:hover {
-  background: var(--soft);
-  transform: translateX(2px);
-}
-
-.category-tab > span {
-  font-weight: 650;
-}
-
-.category-tab > small {
-  color: var(--muted);
-  font-size: 11px;
-  font-variant-numeric: tabular-nums;
 }
 
 .category-tab.active {
-  border-color: rgba(var(--accent-rgb), 0.32);
-  background: rgba(var(--accent-rgb), 0.10);
+  border-color: #ffd4b5;
+  background: #fff0e5;
   color: var(--orange-dark);
   font-weight: 750;
 }
 
-.category-tab.active > small {
-  color: var(--orange-dark);
-  font-weight: 800;
+:root[data-theme="dark"] .category-tab.active {
+  border-color: #633d24;
+  background: #3a2517;
 }
 
 .weight-controls {
@@ -928,152 +907,32 @@ h1 span {
   border-top: 1px solid var(--line);
 }
 
-.weight-heading-row {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
 .weight-controls h4 {
   margin: 0 0 5px;
 }
 
-.weight-heading-row p {
-  margin: 0;
+.weight-controls > p {
+  margin: 0 0 14px;
   color: var(--muted);
   font-size: 12px;
-  line-height: 1.5;
-}
-
-.weight-total {
-  flex: 0 0 auto;
-  min-width: 54px;
-  padding: 7px 9px;
-  border-radius: 9px;
-  background: var(--soft);
-  color: var(--muted);
-  text-align: center;
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
-}
-
-.weight-total.valid {
-  background: rgba(22, 132, 91, 0.12);
-  color: var(--success);
-}
-
-.weight-total.invalid {
-  background: rgba(220, 38, 38, 0.12);
-  color: #dc2626;
-}
-
-.weight-hint {
-  margin: 12px 0 16px;
-  padding: 10px 11px;
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  background: var(--soft);
-  color: var(--muted);
-  font-size: 11px;
-  line-height: 1.5;
 }
 
 .weight-row {
-  display: block;
-  margin: 16px 0;
-  font-size: 12px;
-}
-
-.weight-row-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin: 10px 0;
+  font-size: 12px;
 }
 
-.weight-row-top span {
+.weight-row select {
+  max-width: 150px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
   color: var(--text);
-  font-weight: 650;
-}
-
-.weight-row-top strong {
-  color: var(--orange);
-  font-size: 13px;
-  font-variant-numeric: tabular-nums;
-}
-
-.weight-slider {
-  width: 100%;
-  height: 6px;
-  margin: 0;
-  appearance: none;
-  border-radius: 999px;
-  outline: none;
-  background: linear-gradient(
-    to right,
-    var(--orange) 0%,
-    var(--orange) var(--slider-value, 50%),
-    var(--line) var(--slider-value, 50%),
-    var(--line) 100%
-  );
-  cursor: pointer;
-}
-
-.weight-slider::-webkit-slider-thumb {
-  width: 18px;
-  height: 18px;
-  appearance: none;
-  border: 3px solid var(--surface);
-  border-radius: 50%;
-  background: var(--orange);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-  transition: transform 0.15s ease, box-shadow 0.15s ease;
-}
-
-.weight-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 3px solid var(--surface);
-  border-radius: 50%;
-  background: var(--orange);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
-}
-
-.weight-slider:hover::-webkit-slider-thumb,
-.weight-slider:focus::-webkit-slider-thumb {
-  transform: scale(1.12);
-  box-shadow: 0 0 0 5px rgba(var(--accent-rgb), 0.12);
-}
-
-.weight-slider:focus-visible {
-  box-shadow: 0 0 0 3px rgba(var(--accent-rgb), 0.14);
-}
-
-.weight-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 5px;
-  color: var(--muted);
-  font-size: 9px;
-}
-
-/* Плавное появление графика при смене Overall/Gaming/Creative Work/Daily Use. */
-.category-visuals {
-  animation: categoryVisualEnter 0.34s ease both;
-}
-
-@keyframes categoryVisualEnter {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
 }
 
 /* =========================================================
@@ -1414,10 +1273,6 @@ footer .brand-mark {
     grid-template-columns: 1fr 1fr;
   }
 
-  .weight-heading-row {
-    align-items: center;
-  }
-
   .winner-row {
     font-size: 11px;
   }
@@ -1534,67 +1389,124 @@ footer .brand-mark {
 .spider-dot-1 { background: var(--spider-1); }
 .spider-dot-2 { background: var(--spider-2); }
 .spider-dot-3 { background: var(--spider-3); }
+
 /* =========================================================
-   17. ФИНАЛЬНЫЕ ПРАВКИ COMPARISON UI
+   15. КАСТОМНЫЕ ВЕСА
+   Показываются только на вкладке Overall.
    ========================================================= */
-.spider-chart-wrap {
-  grid-template-columns: minmax(360px, 430px) minmax(200px, 1fr);
+.weight-controls {
+  margin-top: 20px;
+  padding: 18px 0 0;
+  border-top: 1px solid var(--line);
+}
+
+.weight-controls-head {
+  display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 18px;
 }
 
-.spider-chart-box {
-  width: 430px;
-  max-width: 100%;
-  min-width: 0;
+.weight-controls-head h4 {
+  margin: 0;
+  font-size: 16px;
 }
 
-.spider-chart {
-  width: 430px;
-  height: 430px;
-  max-width: 100%;
-  min-height: 430px;
+.weight-controls-head strong,
+.weight-row-top strong {
+  color: var(--orange);
 }
 
-/* Кнопка конфетти закреплена в левом нижнем углу экрана. */
+.weight-row {
+  display: block;
+  margin: 0 0 18px;
+}
+
+.weight-row-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  font-size: 13px;
+}
+
+.weight-slider {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 100%;
+  height: 6px;
+  margin: 0;
+  border-radius: 999px;
+  outline: none;
+  background: linear-gradient(
+    to right,
+    var(--orange) 0%,
+    var(--orange) var(--slider-value),
+    var(--line) var(--slider-value),
+    var(--line) 100%
+  );
+}
+
+.weight-slider::-webkit-slider-thumb {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
+}
+
+.weight-slider::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--orange);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.18);
+}
+
+/* =========================================================
+   16. КНОПКА И КОНФЕТТИ
+   ========================================================= */
 .confetti-trigger {
   position: fixed;
-  left: 22px;
-  bottom: 22px;
-  z-index: 30;
-  display: inline-flex;
+  left: 20px;
+  bottom: 20px;
+  z-index: 100;
+  display: flex;
   align-items: center;
   gap: 8px;
-  padding: 8px 11px 8px 8px;
+  padding: 10px 14px;
   border: 1px solid var(--line);
   border-radius: 12px;
   background: var(--surface);
   color: var(--text);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.16);
-  font-size: 12px;
-  font-weight: 750;
-  transition: transform 0.16s ease, background 0.16s ease;
+  box-shadow: var(--shadow);
+  font-weight: 700;
 }
 
 .confetti-trigger:hover {
-  transform: translateY(-2px);
-  background: var(--soft);
+  transform: translateY(-1px);
 }
 
 .confetti-trigger-mark {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 25px;
+  height: 25px;
   border-radius: 8px;
   background: var(--orange);
-  color: #ffffff;
-  font-weight: 850;
+  color: #fff;
+  font-size: 13px;
 }
 
 .confetti-layer {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 90;
   pointer-events: none;
   overflow: hidden;
 }
@@ -1605,46 +1517,25 @@ footer .brand-mark {
   width: 8px;
   height: 14px;
   border-radius: 2px;
-  opacity: 0;
-  animation-name: confetti-fall;
-  animation-timing-function: cubic-bezier(0.2, 0.7, 0.3, 1);
-  animation-fill-mode: forwards;
+  animation: confetti-fall linear forwards;
 }
 
 @keyframes confetti-fall {
-  0% {
-    opacity: 1;
-    transform: translate3d(0, -10px, 0) rotate(0deg);
+  from {
+    transform: translate3d(0, -20px, 0) rotate(0deg);
   }
-  70% {
-    opacity: 1;
-  }
-  100% {
-    opacity: 0;
-    transform: translate3d(var(--confetti-drift), 105vh, 0) rotate(var(--confetti-rotate));
+  to {
+    transform: translate3d(var(--confetti-drift), 110vh, 0)
+      rotate(var(--confetti-rotate));
   }
 }
 
-@media (max-width: 900px) {
-  .spider-chart-wrap {
-    grid-template-columns: 1fr;
-  }
-
-  .spider-chart-box {
-    width: min(430px, 100%);
-    margin: 0 auto;
-  }
-
-  .spider-chart {
-    width: 100%;
-    height: auto;
-    min-height: 0;
-  }
-}
-
-@media (max-width: 700px) {
+/* Кнопка не перекрывает нижний контент на маленьких экранах. */
+@media (max-width: 640px) {
   .confetti-trigger {
-    left: 14px;
-    bottom: 14px;
+    left: 12px;
+    bottom: 12px;
+    padding: 9px 11px;
+    font-size: 12px;
   }
 }
