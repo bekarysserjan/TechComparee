@@ -50,6 +50,40 @@ function updateCategoryWeight(current, key, rawValue) {
   return next;
 }
 
+// Мгновенно пересчитывает только отображение Overall при движении ползунка.
+// Backend всё равно получает реальные веса с небольшой задержкой, но график не ждёт ответа сервера.
+function buildRealtimeResults(results, weights) {
+  const maxWeight = Math.max(1, ...CATEGORIES.map((category) => Number(weights[category] || 0)));
+
+  return results.map((item) => {
+    const weightedScore = CATEGORIES.reduce((sum, category) => {
+      const score = Number(item.categoryScores?.[category] || 0);
+      const weight = Number(weights[category] || 0);
+      return sum + (score * weight) / 100;
+    }, 0);
+
+    const realtimeCategoryScores = { ...item.categoryScores };
+
+    CATEGORIES.forEach((category) => {
+      const score = Number(item.categoryScores?.[category] || 0);
+      const weight = Number(weights[category] || 0);
+
+      // Вес меняет форму треугольника сразу: 0% убирает ось,
+      // а более высокий вес делает соответствующую ось визуально важнее.
+      realtimeCategoryScores[category] = Math.max(
+        0,
+        Math.min(100, (score * weight) / maxWeight)
+      );
+    });
+
+    return {
+      ...item,
+      overallScore: Number(weightedScore.toFixed(2)),
+      categoryScores: realtimeCategoryScores,
+    };
+  });
+}
+
 // Все запросы к Spring Boot проходят через одну функцию.
 // Так ошибки API одинаково обрабатываются для каталога, сравнения и AI.
 async function request(path, options = {}) {
@@ -725,6 +759,15 @@ function App() {
   }
 
   const results = comparison?.results || [];
+  // Для Overall используем локальный расчёт, поэтому график реагирует на
+  // каждое движение ползунка сразу, не дожидаясь ответа Spring Boot.
+  const displayResults = useMemo(
+    () =>
+      activeCategory === "OVERALL"
+        ? buildRealtimeResults(results, weights)
+        : results,
+    [results, weights, activeCategory]
+  );
 
   return (
     <div className="app-shell">
@@ -1027,7 +1070,7 @@ function App() {
                   <span className="score-badge">SCORE / 100</span>
                 </div>
 
-                <ScoreChart results={results} category={activeCategory} />
+                <ScoreChart results={displayResults} category={activeCategory} />
 
                 <div className="spider-panel">
                   <div className="panel-heading spider-heading">
@@ -1039,11 +1082,11 @@ function App() {
                       {activeCategory === "OVERALL" ? "3 AXES" : "6 AXES"}
                     </span>
                   </div>
-                  <SpiderChart results={results} category={activeCategory} />
+                  <SpiderChart results={displayResults} category={activeCategory} />
                 </div>
 
                 <div className="winner-list">
-                  {results
+                  {displayResults
                     .slice()
                     .sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0))
                     .map((item) => (
