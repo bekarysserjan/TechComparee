@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { createRoot } from "react-dom/client";
 import {
   ArrowUpRight,
@@ -141,7 +141,7 @@ function DeviceSuggestion({ device, type, selected, onSelect }) {
   );
 }
 
-function SpiderChart({ results, category, weights, customWeights }) {
+function SpiderChart({ results, category, categoryWeights = {} }) {
   /*
    * Radar chart has two deliberately different modes.
    *
@@ -199,13 +199,22 @@ function SpiderChart({ results, category, weights, customWeights }) {
 
   const getScore = (item, axis) => {
     if (axis.kind === "category") {
-      const score = Number(item.categoryScores?.[axis.key] ?? 0);
-      if (!customWeights) return score;
+      const rawScore = Number(item.categoryScores?.[axis.key] ?? 0);
+      const weight = Number(categoryWeights?.[axis.key] ?? 0);
 
-      // В режиме пользовательских весов ось показывает вклад категории.
-      // Вес 0% убирает категорию из общей картины, а 100% оставляет её
-      // на исходном масштабе backend.
-      return score * (Number(weights?.[axis.key] ?? 0) / 100);
+      // Backend categoryScores can already contain the selected weight.
+      // Normalize the contribution for the radar so a 34/33/33 split does
+      // not collapse the whole triangle toward the centre. The weight still
+      // changes the radar shape, but the 0-100 visual scale stays stable.
+      if (weight > 0 && weight <= 100 && rawScore <= weight + 0.5) {
+        const maxWeight = Math.max(
+          1,
+          ...CATEGORIES.map((key) => Number(categoryWeights?.[key] ?? 0))
+        );
+        return Math.min(100, (rawScore * 100) / maxWeight);
+      }
+
+      return rawScore;
     }
 
     if (axis.kind === "category-score") {
@@ -379,48 +388,23 @@ function SpiderChart({ results, category, weights, customWeights }) {
   );
 }
 
-function getDisplayedScore(item, category, weights, customWeights) {
-  if (category !== "OVERALL") {
-    return Number(item.categoryScores?.[category] || 0);
-  }
-
-  if (!customWeights) {
-    return Number(item.overallScore || 0);
-  }
-
-  let weightedTotal = 0;
-  let availableWeight = 0;
-
-  for (const categoryKey of CATEGORIES) {
-    const score = Number(item.categoryScores?.[categoryKey]);
-    const weight = Math.max(0, Number(weights?.[categoryKey]) || 0);
-
-    if (Number.isFinite(score) && weight > 0) {
-      weightedTotal += score * weight;
-      availableWeight += weight;
-    }
-  }
-
-  return availableWeight > 0 ? weightedTotal / availableWeight : 0;
-}
-
-function ScoreChart({ results, category, weights, customWeights }) {
+function ScoreChart({ results, category }) {
   const max = Math.max(
     100,
     ...results.map((item) =>
-      getDisplayedScore(item, category, weights, customWeights)
+      category === "OVERALL"
+        ? Number(item.overallScore || 0)
+        : Number(item.categoryScores?.[category] || 0)
     )
   );
 
   return (
     <div className="chart" role="img" aria-label="Device score comparison">
       {results.map((item, index) => {
-        const score = getDisplayedScore(
-          item,
-          category,
-          weights,
-          customWeights
-        );
+        const score =
+          category === "OVERALL"
+            ? Number(item.overallScore || 0)
+            : Number(item.categoryScores?.[category] || 0);
 
         return (
           <div className="chart-row" key={item.deviceId}>
@@ -445,8 +429,10 @@ function ScoreChart({ results, category, weights, customWeights }) {
   );
 }
 
-// Изменение одного процента автоматически перераспределяет остаток
-// между двумя другими категориями. Поэтому сумма всегда остаётся 100%.
+// Изменение одного веса автоматически перераспределяет оставшийся процент
+// между двумя другими категориями. Поэтому сумма всегда остаётся ровно 100%.
+// Это лучше, чем позволять пользователю собрать, например, 137% при помощи
+// трёх ползунков, потому что математика тоже иногда хочет жить.
 function updateCategoryWeight(current, key, rawValue) {
   const nextValue = Math.max(0, Math.min(100, Math.round(Number(rawValue) || 0)));
   const otherKeys = CATEGORIES.filter((category) => category !== key);
@@ -457,6 +443,8 @@ function updateCategoryWeight(current, key, rawValue) {
   const remaining = 100 - nextValue;
   const next = { ...current, [key]: nextValue };
 
+  // Если у двух остальных категорий раньше были нулевые веса,
+  // делим оставшееся место поровну.
   if (oldOtherTotal === 0) {
     const first = Math.floor(remaining / 2);
     next[otherKeys[0]] = first;
@@ -464,6 +452,7 @@ function updateCategoryWeight(current, key, rawValue) {
     return next;
   }
 
+  // В остальных случаях сохраняем их прежнее соотношение.
   const firstOther = Math.round(
     (Number(current[otherKeys[0]]) / oldOtherTotal) * remaining
   );
@@ -485,14 +474,13 @@ function App() {
   const [error, setError] = useState("");
   const [comparison, setComparison] = useState(null);
   const [activeCategory, setActiveCategory] = useState("OVERALL");
-  const [customWeights, setCustomWeights] = useState(false);
-  const [chartVersion, setChartVersion] = useState(0);
+  // Вес каждой категории хранится сразу в процентах.
+  // Начальные значения уже дают ровно 100%.
   const [weights, setWeights] = useState({
     GAMING: 34,
     CREATIVE_WORK: 33,
     DAILY_USE: 33,
   });
-  const searchInputRef = useRef(null);
   const [aiText, setAiText] = useState("");
   const [comparing, setComparing] = useState(false);
   const [aiLoading, setAiLoading] = useState(false);
@@ -520,28 +508,6 @@ function App() {
     localStorage.setItem("tc-theme", dark ? "dark" : "light");
     document.documentElement.dataset.theme = dark ? "dark" : "light";
   }, [dark]);
-
-  useEffect(() => {
-    // Backspace должен редактировать текст только в редактируемом поле.
-    // В остальных местах браузер может трактовать его как "Назад", что
-    // особенно неприятно для SPA: вместо изменения поиска пользователь
-    // получает пустую страницу предыдущего маршрута.
-    const preventBrowserBackWithBackspace = (event) => {
-      if (event.key !== "Backspace") return;
-
-      const target = event.target;
-      const isEditable =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target?.isContentEditable;
-
-      if (!isEditable) event.preventDefault();
-    };
-
-    window.addEventListener("keydown", preventBrowserBackWithBackspace);
-    return () =>
-      window.removeEventListener("keydown", preventBrowserBackWithBackspace);
-  }, []);
 
   // Поиск выполняется прямо во Frontend по уже загруженному каталогу Backend.
   // Пока пользователь ничего не ввёл, полный список специально не показываем.
@@ -599,6 +565,7 @@ function App() {
 
   // Кнопка "Наверх" появляется только после небольшой прокрутки.
   const [showScrollTop, setShowScrollTop] = useState(false);
+  const [confetti, setConfetti] = useState([]);
 
   useEffect(() => {
     const handleScroll = () => setShowScrollTop(window.scrollY > 500);
@@ -643,12 +610,6 @@ function App() {
     toggleDevice(id);
   }
 
-  function changeCategory(category) {
-    // Небольшая анимация вместо резкой подмены графика.
-    setActiveCategory(category);
-    setChartVersion((value) => value + 1);
-  }
-
   async function fetchAiOverview(comparisonData) {
     if (!comparisonData) return;
 
@@ -683,6 +644,21 @@ function App() {
     } finally {
       setAiLoading(false);
     }
+  }
+
+  function launchConfetti() {
+    const pieces = Array.from({ length: 70 }, (_, index) => ({
+      id: `${Date.now()}-${index}`,
+      left: 50 + (Math.random() - 0.5) * 16,
+      delay: Math.random() * 0.12,
+      duration: 1.7 + Math.random() * 1.1,
+      drift: (Math.random() - 0.5) * 520,
+      rotate: Math.random() * 720 - 360,
+      color: ["#60a5fa", "#3b82f6", "#93c5fd", "#ffffff", "#22c55e"][index % 5],
+    }));
+
+    setConfetti(pieces);
+    window.setTimeout(() => setConfetti([]), 3200);
   }
 
   async function compare() {
@@ -738,7 +714,6 @@ function App() {
 
       setComparison(result);
       setActiveCategory("OVERALL");
-      setChartVersion((value) => value + 1);
       await fetchAiOverview(result);
     } catch (requestError) {
       setError(
@@ -755,6 +730,12 @@ function App() {
   }
 
   const results = comparison?.results || [];
+
+  // Защита интерфейса: этот показатель всегда должен быть 100.
+  const weightTotal = CATEGORIES.reduce(
+    (sum, category) => sum + Number(weights[category] || 0),
+    0
+  );
 
   return (
     <div className="app-shell">
@@ -822,30 +803,11 @@ function App() {
             </div>
 
             <div className="search-autocomplete">
-              <div
-                className="search-box"
-                role="search"
-                onKeyDown={(event) => {
-                  // Backspace вне текстового поля не должен работать как
-                  // браузерная кнопка "Назад". В самом input Backspace работает обычно.
-                  if (event.key === "Backspace" && event.target !== searchInputRef.current) {
-                    event.preventDefault();
-                  }
-                }}
-              >
+              <label className="search-box">
                 <Search size={18} />
                 <input
-                  ref={searchInputRef}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  onKeyDown={(event) => {
-                    // Пока фокус находится в поле, Backspace всегда должен редактировать текст.
-                    if (event.key === "Escape") {
-                      event.preventDefault();
-                      setQuery("");
-                      searchInputRef.current?.focus();
-                    }
-                  }}
                   placeholder="Search Apple, Samsung, MacBook…"
                   autoComplete="off"
                   aria-label="Search devices"
@@ -854,27 +816,13 @@ function App() {
                   <button
                     type="button"
                     className="clear-search"
-                    tabIndex={-1}
-                    onMouseDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onPointerDown={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                    }}
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
-                      setQuery("");
-                      requestAnimationFrame(() => searchInputRef.current?.focus());
-                    }}
+                    onClick={() => setQuery("")}
                     aria-label="Clear search"
                   >
                     <X size={16} />
                   </button>
                 )}
-              </div>
+              </label>
 
               {query.trim() && !loading && (
                 <div className="suggestions" role="listbox" aria-label="Matching devices">
@@ -1090,8 +1038,8 @@ function App() {
                   <span className="score-badge">SCORE / 100</span>
                 </div>
 
-                <div className="category-visuals" key={chartVersion}>
-                  <ScoreChart results={results} category={activeCategory} weights={weights} customWeights={customWeights} />
+                <div className="category-visuals" key={activeCategory}>
+                  <ScoreChart results={results} category={activeCategory} />
 
                   <div className="spider-panel">
                   <div className="panel-heading spider-heading">
@@ -1103,34 +1051,21 @@ function App() {
                       {activeCategory === "OVERALL" ? "3 AXES" : "6 AXES"}
                     </span>
                   </div>
-                    <SpiderChart results={results} category={activeCategory} weights={weights} customWeights={customWeights} />
+                    <SpiderChart results={results} category={activeCategory} categoryWeights={comparison?.categoryWeights} />
                   </div>
                 </div>
 
                 <div className="winner-list">
                   {results
                     .slice()
-                    .sort(
-                      (a, b) =>
-                        getDisplayedScore(b, "OVERALL", weights, customWeights) -
-                        getDisplayedScore(a, "OVERALL", weights, customWeights)
-                    )
-                    .map((item, index) => {
-                      const score = getDisplayedScore(
-                        item,
-                        "OVERALL",
-                        weights,
-                        customWeights
-                      );
-
-                      return (
-                        <div className="winner-row" key={item.deviceId}>
-                          <span className="rank">#{index + 1}</span>
-                          <span>{item.deviceName}</span>
-                          <b>{Number.isFinite(score) ? score.toFixed(1) : "—"} pts</b>
-                        </div>
-                      );
-                    })}
+                    .sort((a, b) => (b.overallScore || 0) - (a.overallScore || 0))
+                    .map((item) => (
+                      <div className="winner-row" key={item.deviceId}>
+                        <span className="rank">#{item.rank}</span>
+                        <span>{item.deviceName}</span>
+                        <b>{item.overallScore ?? "—"} pts</b>
+                      </div>
+                    ))}
                 </div>
               </div>
 
@@ -1140,63 +1075,81 @@ function App() {
 
                 <div className="category-tabs">
                   <button
-                    type="button"
-                    className={activeCategory === "OVERALL" ? "category-tab active" : "category-tab"}
-                    onClick={() => changeCategory("OVERALL")}
+                    className={
+                      activeCategory === "OVERALL"
+                        ? "category-tab active"
+                        : "category-tab"
+                    }
+                    onClick={() => setActiveCategory("OVERALL")}
                   >
                     <span>Overall</span>
+                    <small>All categories</small>
                   </button>
                   {CATEGORIES.map((category) => (
                     <button
-                      type="button"
                       key={category}
-                      className={activeCategory === category ? "category-tab active" : "category-tab"}
-                      onClick={() => changeCategory(category)}
+                      className={
+                        activeCategory === category
+                          ? "category-tab active"
+                          : "category-tab"
+                      }
+                      onClick={() => setActiveCategory(category)}
                     >
                       <span>{CATEGORY_NAMES[category]}</span>
+                      {activeCategory === "OVERALL" && <small>{weights[category]}%</small>}
                     </button>
                   ))}
                 </div>
 
-                <div className={`custom-weight-toggle ${customWeights ? "open" : ""}`}>
-                  <button
-                    type="button"
-                    className="custom-weight-button"
-                    onClick={() => setCustomWeights((value) => !value)}
-                    aria-expanded={customWeights}
-                  >
-                    <span>Custom weights</span>
-                    <span>{customWeights ? "Hide" : "Set"}</span>
-                  </button>
-
-                  {customWeights && (
-                    <div className="weight-controls">
-                      {CATEGORIES.map((category) => (
-                        <label className="weight-row" key={category}>
-                          <div className="weight-row-top">
-                            <span>{CATEGORY_NAMES[category]}</span>
-                            <strong>{weights[category]}%</strong>
-                          </div>
-                          <input
-                            className="weight-slider"
-                            type="range"
-                            min="0"
-                            max="100"
-                            step="1"
-                            value={weights[category]}
-                            style={{ "--slider-value": `${weights[category]}%` }}
-                            onChange={(event) =>
-                              setWeights((old) =>
-                                updateCategoryWeight(old, category, event.target.value)
-                              )
-                            }
-                            aria-label={`${CATEGORY_NAMES[category]} weight`}
-                          />
-                        </label>
-                      ))}
+                {activeCategory === "OVERALL" && (
+                  <div className="weight-controls">
+                    <div className="weight-heading-row">
+                      <div>
+                        <h4>Custom weights</h4>
+                      </div>
+                      <strong className={weightTotal === 100 ? "weight-total valid" : "weight-total invalid"}>
+                        {weightTotal}%
+                      </strong>
                     </div>
-                  )}
-                </div>
+
+                    {CATEGORIES.map((category) => (
+                      <label className="weight-row" key={category}>
+                        <div className="weight-row-top">
+                          <span>{CATEGORY_NAMES[category]}</span>
+                          <strong>{weights[category]}%</strong>
+                        </div>
+                        <input
+                          className="weight-slider"
+                          type="range"
+                          min="0"
+                          max="100"
+                          step="1"
+                          value={weights[category]}
+                          style={{ "--slider-value": `${weights[category]}%` }}
+                          onChange={(event) =>
+                            setWeights((old) =>
+                              updateCategoryWeight(old, category, event.target.value)
+                            )
+                          }
+                          aria-label={`${CATEGORY_NAMES[category]} importance`}
+                        />
+                        <div className="weight-scale">
+                          <span>0%</span>
+                          <span>100%</span>
+                        </div>
+                      </label>
+                    ))}
+
+                    <button
+                      className="primary-button full-button"
+                      onClick={compare}
+                      disabled={comparing || weightTotal !== 100}
+                    >
+                      {comparing ? "Updating…" : "Update comparison"}
+                      <ArrowUpRight size={17} />
+                    </button>
+                  </div>
+                )}
               </aside>
             </div>
 
@@ -1207,50 +1160,38 @@ function App() {
               </div>
             )}
 
-            <div className="metric-details">
-              <h3>Category breakdown</h3>
-              <p className="muted">Metric scores returned by the backend.</p>
-
-              <div className="table-wrap">
-                <table>
-                  <thead>
-                    <tr>
-                      <th>Device</th>
-                      <th>Category</th>
-                      <th>Score</th>
-                      <th>Available metric weight</th>
-                      <th>Metrics</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {results.flatMap((item) =>
-                      CATEGORIES.map((category) => {
-                        const detail = item.categories?.[category];
-                        return (
-                          <tr key={`${item.deviceId}-${category}`}>
-                            <td>{item.deviceName}</td>
-                            <td>{CATEGORY_NAMES[category]}</td>
-                            <td>
-                              {detail?.score ??
-                                item.categoryScores?.[category] ??
-                                "—"}
-                            </td>
-                            <td>{detail?.availableMetricWeight ?? "—"}</td>
-                            <td>
-                              {(detail?.metrics || [])
-                                .map((metric) => `${metric.name}: ${metric.score ?? "—"}`)
-                                .join(" · ") || "No metric details"}
-                            </td>
-                          </tr>
-                        );
-                      })
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </section>
         )}
+
+        {confetti.length > 0 && (
+          <div className="confetti-layer" aria-hidden="true">
+            {confetti.map((piece) => (
+              <span
+                key={piece.id}
+                className="confetti-piece"
+                style={{
+                  left: `${piece.left}%`,
+                  backgroundColor: piece.color,
+                  animationDelay: `${piece.delay}s`,
+                  animationDuration: `${piece.duration}s`,
+                  "--confetti-drift": `${piece.drift}px`,
+                  "--confetti-rotate": `${piece.rotate}deg`,
+                }}
+              />
+            ))}
+          </div>
+        )}
+
+        <button
+          type="button"
+          className="confetti-trigger"
+          onClick={launchConfetti}
+          aria-label="Celebrate with TechCompare confetti"
+          title="Celebrate"
+        >
+          <span className="confetti-trigger-mark">T</span>
+          <span>TechCompare</span>
+        </button>
 
         {showScrollTop && (
           <button
