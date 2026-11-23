@@ -1539,3 +1539,12 @@ footer .brand-mark {
     font-size: 12px;
   }
 }
+
+/* Плавная реакция кастомных весов на движение ползунка. */
+.weight-slider {
+  transition: background-size 120ms linear;
+}
+
+.spider-chart polygon.spider-data {
+  transition: opacity 120ms linear;
+}
